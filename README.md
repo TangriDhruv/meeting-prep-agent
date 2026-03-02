@@ -15,15 +15,75 @@ You can run it manually in the terminal, save output to a markdown file, or have
 ## How it works
 
 ```
-Google Calendar (MCP) ──┐
-                         ├──► Claude (claude-sonnet-4-6) ──► Meeting Prep Brief
-Gmail (direct API)  ────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        SCHEDULER (macOS)                        │
+│                                                                 │
+│   launchd (9 AM daily)                                          │
+│       └──► run_email_brief.sh                                   │
+│                └──► python3 -m meeting_prep_agent.main          │
+│                             --days 1 --email                    │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLI (main.py)                           │
+│                                                                 │
+│   --days N   --meeting TEXT   --output terminal|markdown        │
+│   --email                                                       │
+│                                                                 │
+│   1. google_auth.py  →  OAuth 2.0 (gmail.readonly + gmail.send) │
+│   2. run_agent()     →  generates the brief                     │
+│   3a. print_brief()  →  terminal / markdown output              │
+│   3b. send_brief_email() → email delivery                       │
+└───────────┬─────────────────────────────┬───────────────────────┘
+            │                             │
+            ▼                             ▼
+┌───────────────────────┐     ┌───────────────────────────┐
+│    AGENT (agent.py)   │     │  EMAIL SENDER             │
+│                       │     │  (email_sender.py)        │
+│  Agentic loop:        │     │                           │
+│  while tools needed:  │     │  markdown → HTML          │
+│    call Claude API    │     │  MIMEMultipart (alt.)     │
+│    execute tools      │     │  Gmail API → send()       │
+│    feed results back  │     └───────────────────────────┘
+│  until end_turn       │
+└───────┬───────────────┘
+        │
+        │  Tools available to Claude
+        ├──────────────────────────────────────────────────┐
+        │                                                  │
+        ▼                                                  ▼
+┌───────────────────────┐                    ┌────────────────────────┐
+│  GOOGLE CALENDAR      │                    │  GMAIL                 │
+│  (MCP via stdio)      │                    │  (direct API)          │
+│                       │                    │                        │
+│  @cocal/google-       │                    │  tools.py              │
+│  calendar-mcp (npx)   │                    │    get_emails_with_    │
+│                       │                    │      person()          │
+│  list-calendars       │                    │    search_emails()     │
+│  list-events          │                    │    get_email_body()    │
+│  get-current-time     │                    │                        │
+│  + 10 more tools      │                    │  tool_executor.py      │
+│                       │                    │    routes calls to     │
+│  calendar_token.json  │                    │    gmail_client.py     │
+└───────────────────────┘                    └────────────────────────┘
+        │                                                  │
+        ▼                                                  ▼
+┌───────────────────────┐                    ┌────────────────────────┐
+│  Google Calendar API  │                    │  Gmail API             │
+│  (OAuth via MCP)      │                    │  (OAuth via            │
+│                       │                    │   google_auth.py)      │
+└───────────────────────┘                    └────────────────────────┘
 ```
 
-- **Google Calendar** is accessed via the [`@cocal/google-calendar-mcp`](https://www.npmjs.com/package/@cocal/google-calendar-mcp) MCP server over stdio
-- **Gmail** is accessed directly via the Google Gmail API (Python)
-- **Claude** drives the agentic loop — it decides which tools to call, synthesises the results, and writes the final brief
-- **Email delivery** converts the markdown brief to HTML and sends it via Gmail API
+**Data flow:**
+
+1. **launchd** fires `run_email_brief.sh` at 9 AM
+2. **main.py** authenticates with Google OAuth and kicks off the agent
+3. **agent.py** enters an agentic loop — calls Claude, which decides what tools to use
+4. Claude calls **Calendar tools** (via MCP server over stdio) and **Gmail tools** (via direct API) iteratively until it has enough context
+5. Claude writes the final markdown brief and returns it
+6. **email_sender.py** converts it to HTML and sends it via Gmail API to `EMAIL_RECIPIENT`
 
 ## Project structure
 
