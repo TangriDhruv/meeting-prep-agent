@@ -213,8 +213,8 @@ chmod +x run_email_brief.sh
 ### 2. Install the launchd job
 
 ```bash
-cp com.meenusankar.meeting-prep-agent.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.meenusankar.meeting-prep-agent.plist
+cp com.dhruv.meeting-prep-agent.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.dhruv.meeting-prep-agent.plist
 ```
 
 ### 3. Verify it's registered
@@ -228,8 +228,8 @@ Logs are written to `launchd_stdout.log` and `launchd_stderr.log` in the project
 ### Uninstall
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.meenusankar.meeting-prep-agent.plist
-rm ~/Library/LaunchAgents/com.meenusankar.meeting-prep-agent.plist
+launchctl unload ~/Library/LaunchAgents/com.dhruv.meeting-prep-agent.plist
+rm ~/Library/LaunchAgents/com.dhruv.meeting-prep-agent.plist
 ```
 
 ## Environment variables reference
