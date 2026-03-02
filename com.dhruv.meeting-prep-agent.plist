@@ -4,7 +4,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.meenusankar.meeting-prep-agent</string>
+    <string>com.dhruv.meeting-prep-agent</string>
 
     <key>ProgramArguments</key>
     <array>
