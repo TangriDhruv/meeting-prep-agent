@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.meenusankar.meeting-prep-agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/meenusankar/meeting-prep-agent/run_email_brief.sh</string>
+    </array>
+
+    <!-- Run every day at 09:00 local time (set your Mac's timezone to EST) -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/meenusankar/meeting-prep-agent/launchd_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/meenusankar/meeting-prep-agent/launchd_stderr.log</string>
+</dict>
+</plist>
