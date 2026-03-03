@@ -30,6 +30,13 @@ def send_brief_email(creds: Credentials, brief: str) -> None:
     today = datetime.date.today().strftime("%A, %B %-d, %Y")
     subject = f"{EMAIL_SUBJECT_PREFIX} — {today}"
 
+    # Strip any conversational preamble before the markdown content
+    for marker in ("---", "#"):
+        idx = brief.find(marker)
+        if idx != -1:
+            brief = brief[idx:]
+            break
+
     html_body = markdown.markdown(brief, extensions=["tables", "fenced_code"])
 
     msg = MIMEMultipart("alternative")

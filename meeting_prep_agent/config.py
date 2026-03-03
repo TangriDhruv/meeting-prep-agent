@@ -22,7 +22,7 @@ def _require(key: str) -> str:
 ANTHROPIC_API_KEY: str = _require("ANTHROPIC_API_KEY")
 CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 DAYS_AHEAD: int = int(os.getenv("DAYS_AHEAD", "7"))
-MAX_EMAIL_RESULTS: int = int(os.getenv("MAX_EMAIL_RESULTS", "10"))
+MAX_EMAIL_RESULTS: int = int(os.getenv("MAX_EMAIL_RESULTS", "5"))
 MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "4096"))
 # Credentials file for the Google Calendar MCP server (calendar OAuth)
 GOOGLE_CALENDAR_CREDENTIALS: str = os.getenv(

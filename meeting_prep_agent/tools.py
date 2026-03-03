@@ -20,7 +20,7 @@ GMAIL_TOOL_DEFINITIONS = [
                 },
                 "max_results": {
                     "type": "integer",
-                    "description": "Maximum number of threads to return (default: 10).",
+                    "description": "Maximum number of threads to return (default: 5).",
                 },
             },
             "required": ["email"],
@@ -41,7 +41,7 @@ GMAIL_TOOL_DEFINITIONS = [
                 },
                 "max_results": {
                     "type": "integer",
-                    "description": "Maximum number of threads to return (default: 10).",
+                    "description": "Maximum number of threads to return (default: 5).",
                 },
             },
             "required": ["query"],

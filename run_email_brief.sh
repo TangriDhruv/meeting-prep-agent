@@ -21,4 +21,4 @@ fi
 
 cd "$SCRIPT_DIR"
 
-exec python3 -m meeting_prep_agent.main --days 1 --email
+exec /opt/anaconda3/bin/python3 -m meeting_prep_agent.main --days 1 --email
