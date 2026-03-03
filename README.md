@@ -14,6 +14,8 @@ You can run it manually in the terminal, save output to a markdown file, or have
 
 ## How it works
 
+The agent uses a **multi-agent architecture** split into two phases to stay well within API rate limits.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        SCHEDULER (macOS)                        │
@@ -38,52 +40,76 @@ You can run it manually in the terminal, save output to a markdown file, or have
 └───────────┬─────────────────────────────┬───────────────────────┘
             │                             │
             ▼                             ▼
-┌───────────────────────┐     ┌───────────────────────────┐
-│    AGENT (agent.py)   │     │  EMAIL SENDER             │
-│                       │     │  (email_sender.py)        │
-│  Agentic loop:        │     │                           │
-│  while tools needed:  │     │  markdown → HTML          │
-│    call Claude API    │     │  MIMEMultipart (alt.)     │
-│    execute tools      │     │  Gmail API → send()       │
-│    feed results back  │     └───────────────────────────┘
-│  until end_turn       │
-└───────┬───────────────┘
-        │
-        │  Tools available to Claude
-        ├──────────────────────────────────────────────────┐
-        │                                                  │
-        ▼                                                  ▼
-┌───────────────────────┐                    ┌────────────────────────┐
-│  GOOGLE CALENDAR      │                    │  GMAIL                 │
-│  (MCP via stdio)      │                    │  (direct API)          │
-│                       │                    │                        │
-│  @cocal/google-       │                    │  tools.py              │
-│  calendar-mcp (npx)   │                    │    get_emails_with_    │
-│                       │                    │      person()          │
-│  list-calendars       │                    │    search_emails()     │
-│  list-events          │                    │    get_email_body()    │
-│  get-current-time     │                    │                        │
-│  + 10 more tools      │                    │  tool_executor.py      │
-│                       │                    │    routes calls to     │
-│  calendar_token.json  │                    │    gmail_client.py     │
-└───────────────────────┘                    └────────────────────────┘
-        │                                                  │
-        ▼                                                  ▼
-┌───────────────────────┐                    ┌────────────────────────┐
-│  Google Calendar API  │                    │  Gmail API             │
-│  (OAuth via MCP)      │                    │  (OAuth via            │
-│                       │                    │   google_auth.py)      │
-└───────────────────────┘                    └────────────────────────┘
+┌───────────────────────────────────────────────────┐   ┌─────────────────────────┐
+│               ORCHESTRATOR (agent.py)             │   │  EMAIL SENDER           │
+│                                                   │   │  (email_sender.py)      │
+│  run_agent()                                      │   │                         │
+│      │                                            │   │  markdown → HTML        │
+│      ▼                                            │   │  MIMEMultipart          │
+│  ┌─────────────────────────────────────────────┐  │   │  Gmail API → send()     │
+│  │  PHASE 1 — DISCOVERY AGENT (async, once)    │  │   └─────────────────────────┘
+│  │                                             │  │
+│  │  _run_discovery_agent_async()               │  │
+│  │                                             │  │
+│  │  Agentic loop (while True):                 │  │
+│  │    Claude ←→ Calendar MCP tools             │  │
+│  │    until end_turn → returns JSON list       │  │
+│  │                                             │  │
+│  │  Tools: list-calendars, list-events,        │  │
+│  │         get-current-time, + 10 more         │  │
+│  │  Max tokens: 2,048  (~3k tokens total)      │  │
+│  └──────────────────┬──────────────────────────┘  │
+│                     │                             │
+│                     │  meetings = [m1, m2, m3...] │
+│                     ▼                             │
+│  ┌─────────────────────────────────────────────┐  │
+│  │  PHASE 2 — PER-MEETING AGENTS (sync loop)   │  │
+│  │                                             │  │
+│  │  for each meeting:                          │  │
+│  │    sleep 10s (between meetings)             │  │
+│  │    _run_per_meeting_agent()                 │  │
+│  │                                             │  │
+│  │    Fresh messages[] per meeting ──────────► │  │
+│  │    Agentic loop (while True):               │  │
+│  │      Claude ←→ Gmail tools                  │  │
+│  │      until end_turn → returns brief         │  │
+│  │                                             │  │
+│  │    Tools: get_emails_with_person,           │  │
+│  │           search_emails                     │  │
+│  │    Max tokens: 4,096  (~10k tokens total)   │  │
+│  └──────────────────┬──────────────────────────┘  │
+│                     │                             │
+│                     │  briefs = [b1, b2, b3...]   │
+│                     ▼                             │
+│              "\n\n".join(briefs)                  │
+└───────────────────────────────────────────────────┘
+            │                             │
+            ▼                             ▼
+┌───────────────────────┐     ┌────────────────────────┐
+│  Google Calendar API  │     │  Gmail API             │
+│  (OAuth via MCP)      │     │  (OAuth via            │
+│  calendar_token.json  │     │   google_auth.py)      │
+└───────────────────────┘     └────────────────────────┘
 ```
+
+**Why multi-agent?**
+
+A single agent accumulates email data for all meetings in one growing `messages[]` list. With 5 meetings × multiple email searches each, the context easily exceeds the 30,000 input tokens/minute rate limit. The two-phase design keeps each agent's context small and bounded:
+
+| Agent | Context size | Rate limit impact |
+|---|---|---|
+| Discovery | ~3,000 tokens (JSON only) | Minimal |
+| Per-meeting | ~8,000–12,000 tokens (one meeting) | Low |
+| Old monolithic | 30,000+ tokens (all meetings) | Causes 429 errors |
 
 **Data flow:**
 
 1. **launchd** fires `run_email_brief.sh` at 9 AM
 2. **main.py** authenticates with Google OAuth and kicks off the agent
-3. **agent.py** enters an agentic loop — calls Claude, which decides what tools to use
-4. Claude calls **Calendar tools** (via MCP server over stdio) and **Gmail tools** (via direct API) iteratively until it has enough context
-5. Claude writes the final markdown brief and returns it
-6. **email_sender.py** converts it to HTML and sends it via Gmail API to `EMAIL_RECIPIENT`
+3. **Phase 1**: Discovery agent (async) calls Calendar MCP tools and returns a JSON list of meetings
+4. **Phase 2**: Python loops over meetings sequentially, spinning up a fresh Gmail-only Claude session per meeting with a 10s pause between each
+5. All briefs are joined and returned
+6. **email_sender.py** converts the combined brief to HTML and sends it via Gmail API
 
 ## Project structure
 
@@ -237,7 +263,7 @@ rm ~/Library/LaunchAgents/com.dhruv.meeting-prep-agent.plist
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | Yes | — | Your Anthropic API key |
-| `CLAUDE_MODEL` | No | `claude-sonnet-4-6` | Claude model to use |
+| `CLAUDE_MODEL` | No | `claude-haiku-4-5-20251001` | Claude model to use |
 | `DAYS_AHEAD` | No | `7` | Default days ahead to look |
 | `MAX_EMAIL_RESULTS` | No | `10` | Max emails to fetch per search |
 | `MAX_TOKENS` | No | `4096` | Max tokens for Claude response |
