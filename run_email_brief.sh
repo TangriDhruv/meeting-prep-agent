@@ -5,11 +5,14 @@
 
 set -euo pipefail
 
-# Ensure system binaries and common Homebrew/pyenv paths are available
-export PATH="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"
-
 # Resolve the project root relative to this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Ensure npx and other tools are available (launchd has a minimal PATH)
+export PATH="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:$PATH"
+
+# Activate the project virtual environment
+source "$SCRIPT_DIR/venv/bin/activate"
 
 # Source .env so EMAIL_RECIPIENT and ANTHROPIC_API_KEY are available
 if [[ -f "$SCRIPT_DIR/.env" ]]; then
@@ -19,6 +22,12 @@ if [[ -f "$SCRIPT_DIR/.env" ]]; then
     set +a
 fi
 
+# Wait for network (up to 30s) before attempting OAuth token refresh
+for i in $(seq 1 30); do
+    ping -c1 -W1 8.8.8.8 &>/dev/null && break
+    sleep 1
+done
+
 cd "$SCRIPT_DIR"
 
-exec /opt/anaconda3/bin/python3 -m meeting_prep_agent.main --days 1 --email
+exec python -m meeting_prep_agent.main --days 1 --email
